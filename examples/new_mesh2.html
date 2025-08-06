@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Potree Viewer</title>
+
+    <link rel="stylesheet" type="text/css" href="../build/potree/potree.css">
+    <link rel="stylesheet" type="text/css" href="../libs/jquery-ui/jquery-ui.min.css">
+    <link rel="stylesheet" type="text/css" href="../libs/openlayers3/ol.css">
+    <link rel="stylesheet" type="text/css" href="../libs/spectrum/spectrum.css">
+    <link rel="stylesheet" type="text/css" href="../libs/jstree/themes/mixed/style.css">
+</head>
+
+<body>
+    <script src="../libs/jquery/jquery-3.1.1.min.js"></script>
+    <script src="../libs/spectrum/spectrum.js"></script>
+    <script src="../libs/jquery-ui/jquery-ui.min.js"></script>
+    <script src="../libs/other/BinaryHeap.js"></script>
+    <script src="../libs/tween/tween.min.js"></script>
+    <script src="../libs/d3/d3.js"></script>
+    <script src="../libs/proj4/proj4.js"></script>
+    <script src="../libs/openlayers3/ol.js"></script>
+    <script src="../libs/i18next/i18next.js"></script>
+    <script src="../libs/jstree/jstree.js"></script>
+    <script src="../build/potree/potree.js"></script>
+    <script src="../libs/plasio/js/laslaz.js"></script>>
+    <script src="../libs/copc/index.js"></script>
+
+    <!-- INCLUDE ADDITIONAL DEPENDENCIES HERE -->
+    <!-- INCLUDE SETTINGS HERE -->
+
+    <div class="potree_container" style="position: absolute; width: 100%; height: 100%; left: 0px; top: 0px; ">
+        <div id="potree_render_area" style="background-image: url('../build/potree/resources/images/background.jpg');">
+        </div>
+        <div id="potree_sidebar_container"> </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from "../libs/three.js/build/three.module.js";
+        import { MTLLoader } from "../libs/three.js/loaders/MTLLoader.js";
+        import { OBJLoader } from "../libs/three.js/loaders/OBJLoader.js";
+        import { GLTFLoader } from "../libs/three.js/loaders/GLTFLoader.js";
+        import { DRACOLoader } from "../libs/three.js/loaders/DRACOLoader.js";
+        window.viewer = new Potree.Viewer(document.getElementById("potree_render_area"));
+        viewer.setEDLEnabled(true);
+        viewer.setFOV(60);
+        viewer.setPointBudget(1_000_000);
+        viewer.loadSettingsFromURL();
+        viewer.setDescription(
+            "Point cloud courtesy of <a target='_blank' href='https://www.sigeom.ch/'>sigeom sa</a>"
+        );
+
+        viewer.loadGUI(() => {
+            viewer.setLanguage("en");
+            $("#menu_tools").next().show();
+            $("#menu_scene").next().show();
+        });
+
+        const eptPath = "../resources/basemap/entwine_pointcloud/ept.json";
+        const cloudName = "lion";
+
+        Potree.loadPointCloud(eptPath, cloudName, (e) => {
+            const pointcloud = e.pointcloud;
+            console.log(pointcloud);
+
+            viewer.scene.addPointCloud(pointcloud);
+
+            // Set point cloud material properties
+            const mat = pointcloud.material;
+            mat.size = 0.1;
+            mat.pointSizeType = Potree.PointSizeType.ADAPTIVE;
+
+            // ===== 1. คำนวณ worldCenter ของ pointcloud =====
+            // ใช้ pcoGeometry.boundingBox + offset ที่ Potree เตรียมไว้
+            const geoBB = pointcloud.pcoGeometry.boundingBox.clone();
+            const geoCenter = geoBB.getCenter(new THREE.Vector3()).add(pointcloud.pcoGeometry.offset);
+            console.log('PointCloud boundingBox:', geoBB);
+            console.log('Computed worldCenter:', geoCenter);
+
+            // วาด helper sphere ตรง geoCenter ให้เห็นตำแหน่ง
+            const sphereGeom = new THREE.SphereGeometry(5, 12, 12);
+            const sphereMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const helperSphere = new THREE.Mesh(sphereGeom, sphereMat);
+            helperSphere.position.copy(geoCenter);
+            viewer.scene.scene.add(helperSphere);
+
+            // Load and align the OBJ model
+            loadOdmMesh(geoCenter);
+
+            // Set initial camera position
+            viewer.scene.view.position.set(
+                geoCenter.x + 500,
+                geoCenter.y + 500,
+                geoCenter.z + 500
+            );
+            viewer.scene.view.lookAt(geoCenter);
+
+            // viewer.setEDLOpacity(1);
+        });
+
+        function loadOdmMesh(worldCenter) {
+            const mtlLoader = new MTLLoader();
+            mtlLoader.setPath(`${Potree.resourcePath}/basemap/odm_texturing/`);
+            mtlLoader.load("odm_textured_model_geo.mtl", (materials) => {
+                materials.preload();
+
+                const objLoader = new OBJLoader();
+                objLoader.setMaterials(materials);
+                objLoader.setPath(`${Potree.resourcePath}/basemap/odm_texturing/`);
+                objLoader.load("odm_textured_model_geo.obj", (mesh) => {
+                    // รีเซ็ตตำแหน่งก่อนคำนวณ bounding box
+                    mesh.position.set(0, 0, 0);
+                    mesh.rotation.set(0, 0, 0);
+                    mesh.scale.set(1, 1, 1);
+
+                    // ===== 2.1 คำนวณ center ของ OBJ =====
+                    // ถ้าเป็น Group ให้รวมทุก Mesh ข้างใน
+                    const objBB = new THREE.Box3();
+                    mesh.traverse(child => {
+                        if (child.isMesh) {
+                            child.geometry.computeBoundingBox();
+                            const childBB = child.geometry.boundingBox.clone()
+                                .applyMatrix4(child.matrixWorld);
+                            objBB.union(childBB);
+                        }
+                    });
+                    const objCenter = objBB.getCenter(new THREE.Vector3());
+                    console.log('OBJ boundingBox:', objBB);
+                    console.log('Computed objCenter:', objCenter);
+
+                    // ===== 2.2 เลื่อน OBJ =====
+                    mesh.position.sub(objCenter).add(worldCenter);
+                    viewer.scene.scene.add(mesh);
+
+
+                });
+            });
+        }
+
+        {
+            const dir = new THREE.DirectionalLight(0xffffff, 1.0);
+            dir.position.set(10, 10, 10).normalize();
+            const amb = new THREE.AmbientLight(0x555555);
+            viewer.scene.scene.add(dir, amb);
+        }
+    </script>
+
+
+
+</body>
+
+</html>

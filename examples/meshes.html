@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
 	<meta charset="utf-8">
 	<meta name="description" content="">
@@ -26,194 +27,116 @@
 	<script src="../libs/i18next/i18next.js"></script>
 	<script src="../libs/jstree/jstree.js"></script>
 	<script src="../build/potree/potree.js"></script>
-	<script src="../libs/plasio/js/laslaz.js"></script>
-	
+	<script src="../libs/plasio/js/laslaz.js"></script>>
+	<script src="../libs/copc/index.js"></script>
+
 	<!-- INCLUDE ADDITIONAL DEPENDENCIES HERE -->
 	<!-- INCLUDE SETTINGS HERE -->
-	
+
 	<div class="potree_container" style="position: absolute; width: 100%; height: 100%; left: 0px; top: 0px; ">
-		<div id="potree_render_area" style="background-image: url('../build/potree/resources/images/background.jpg');"></div>
+		<div id="potree_render_area" style="background-image: url('../build/potree/resources/images/background.jpg');">
+		</div>
 		<div id="potree_sidebar_container"> </div>
 	</div>
-	
-	<script type="module">
 
+	<script type="module">
 		import * as THREE from "../libs/three.js/build/three.module.js";
-		import {PLYLoader} from "../libs/three.js/loaders/PLYLoader.js";
-		import {OBJLoader} from "../libs/three.js/loaders/OBJLoader.js";
-	
+		import { MTLLoader } from "../libs/three.js/loaders/MTLLoader.js";
+		import { OBJLoader } from "../libs/three.js/loaders/OBJLoader.js";
+		import { GLTFLoader } from "../libs/three.js/loaders/GLTFLoader.js";
+		import { DRACOLoader } from "../libs/three.js/loaders/DRACOLoader.js";
 		window.viewer = new Potree.Viewer(document.getElementById("potree_render_area"));
-		
 		viewer.setEDLEnabled(true);
 		viewer.setFOV(60);
 		viewer.setPointBudget(1_000_000);
 		viewer.loadSettingsFromURL();
-		
-		viewer.setDescription("Point cloud courtesy of <a target='_blank' href='https://www.sigeom.ch/'>sigeom sa</a>");
-		
+		viewer.setDescription(
+			"Point cloud courtesy of <a target='_blank' href='https://www.sigeom.ch/'>sigeom sa</a>"
+		);
+
 		viewer.loadGUI(() => {
-			viewer.setLanguage('en');
+			viewer.setLanguage("en");
 			$("#menu_tools").next().show();
 			$("#menu_scene").next().show();
-			//viewer.toggleSidebar();
-		});
-		
-		// Sigeom
-		Potree.loadPointCloud("../pointclouds/vol_total/cloud.js", "sigeom.sa", function(e){
-			let scene = viewer.scene;
-			scene.addPointCloud(e.pointcloud);
-			
-			let material = e.pointcloud.material;
-			material.size = 1;
-			material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
-
-			scene.view.position.set(589974.341, 231698.397, 986.146);
-			scene.view.lookAt(new THREE.Vector3(589851.587, 231428.213, 715.634));
-			// viewer.fitToScreen();
-		});
-		
-		var loader = new PLYLoader();
-		loader.load( Potree.resourcePath + "/models/stanford_bunny_reduced.ply", (geometry) => {
-			geometry.computeVertexNormals();
-			
-			// place three instances of this bunny into the scene
-			
-			let mesh1;
-			{
-				let material = new THREE.MeshNormalMaterial();
-				mesh1 = new THREE.Mesh( geometry, material );
-				mesh1.position.set(589951.587, 231428.213, 710.634);
-				mesh1.scale.multiplyScalar(500);
-				mesh1.rotation.set(Math.PI / 2, Math.PI, 0)
-				viewer.scene.scene.add(mesh1);
-			}
-			
-			let mesh2;
-			{
-				let material = new THREE.MeshStandardMaterial( { 
-					color: 0x0055ff, 
-					flatShading: true,
-					metalness: 0.2} );
-				mesh2 = new THREE.Mesh( geometry, material );
-				mesh2.position.set(589851.587, 231348.213, 720.634);
-				mesh2.scale.multiplyScalar(500);
-				mesh2.rotation.set(Math.PI / 2, Math.PI, 0)
-				viewer.scene.scene.add(mesh2);
-			}
-			
-			let mesh3;
-			{
-				let material = new THREE.MeshPhysicalMaterial( {
-					color: 0x226666,
-					metalness: 0,
-					roughness: 0.5,
-					reflectivity: 1.0
-				} );
-				mesh3 = new THREE.Mesh( geometry, material );
-				mesh3.position.set(589751.587, 231428.213, 725.634);
-				mesh3.scale.multiplyScalar(500);
-				mesh3.rotation.set(Math.PI / 2, Math.PI, 0)
-				viewer.scene.scene.add(mesh3);
-			}
-
-			viewer.onGUILoaded(() => {
-				// Add entries to object list in sidebar
-				let tree = $(`#jstree_scene`);
-				let parentNode = "other";
-
-				let bunny1ID = tree.jstree('create_node', parentNode, { 
-						"text": "Bunny 1", 
-						"icon": `${Potree.resourcePath}/icons/triangle.svg`,
-						"data": mesh1
-					}, 
-					"last", false, false);
-				tree.jstree(mesh1.visible ? "check_node" : "uncheck_node", bunny1ID);
-
-				let bunny2ID = tree.jstree('create_node', parentNode, { 
-						"text": "Bunny 2", 
-						"icon": `${Potree.resourcePath}/icons/triangle.svg`,
-						"data": mesh2
-					}, 
-					"last", false, false);
-				tree.jstree(mesh2.visible ? "check_node" : "uncheck_node", bunny2ID);
-
-				let bunny3ID = tree.jstree('create_node', parentNode, { 
-						"text": "Bunny 3", 
-						"icon": `${Potree.resourcePath}/icons/triangle.svg`,
-						"data": mesh3
-					}, 
-					"last", false, false);
-				tree.jstree(mesh3.visible ? "check_node" : "uncheck_node", bunny3ID);
-			});
-			
 		});
 
+		const eptPath = "../resources/basemap/entwine_pointcloud/ept.json";
+		const cloudName = "lion";
 
-		{
-			let manager = new THREE.LoadingManager();
-			manager.onProgress = function ( item, loaded, total ) {
-				console.log( item, loaded, total );
-			};
+		Potree.loadPointCloud(eptPath, cloudName, e => {
+			const pointcloud = e.pointcloud;
+			viewer.scene.addPointCloud(pointcloud);
 
-			let onProgress = function ( xhr ) {
-				if ( xhr.lengthComputable ) {
-					let percentComplete = xhr.loaded / xhr.total * 100;
-					console.log( Math.round(percentComplete, 2) + '% downloaded' );
-				}
-			};
-			let onError = function ( xhr ) {};
+			// 1. คำนวณ geoCenter จาก Potree geometry + offset
+			const geoBB = pointcloud.pcoGeometry.boundingBox.clone();
+			const geoCenter = geoBB.getCenter(new THREE.Vector3())
+				.add(pointcloud.pcoGeometry.offset);
 
-			const texture = new THREE.TextureLoader().load(`${Potree.resourcePath}/textures/brick_pavement.jpg`);
+			// วาด helper sphere ให้รู้ตำแหน่ง geoCenter
+			const helper = new THREE.Mesh(
+				new THREE.SphereGeometry(5, 8, 8),
+				new THREE.MeshBasicMaterial({ color: 0xff0000 })
+			);
+			helper.position.copy(geoCenter);
+			viewer.scene.scene.add(helper);
 
-			texture.wrapS = THREE.RepeatWrapping;
-			texture.wrapT = THREE.RepeatWrapping;
+			// วาด BoundingBox ของ pointcloud
+			const bbHelperPC = new THREE.Box3Helper(geoBB, 0x00ff00);
+			bbHelperPC.applyMatrix4(new THREE.Matrix4().makeTranslation(
+				pointcloud.position.x,
+				pointcloud.position.y,
+				pointcloud.position.z
+			));
+			viewer.scene.scene.add(bbHelperPC);
 
-			let loader = new OBJLoader( manager );
-			loader.load(`${Potree.resourcePath}/models/stanford_bunny_reduced.obj`, function ( object ) {
-				object.traverse( function ( child ) {
-					if ( child instanceof THREE.Mesh ) {
-						child.material.map = texture;
-					}
-				} );
+			// โหลด OBJ แล้ว align
+			loadOdmMesh(geoCenter, geoBB);
+		});
 
-				object.position.set(589871.587, 231528.213, 725.634);
-				object.scale.multiplyScalar(500);
-				object.rotation.set(Math.PI / 2, Math.PI, 0)
+		function loadOdmMesh(worldCenter) {
+			const mtlLoader = new MTLLoader();
+			mtlLoader.setPath(`${Potree.resourcePath}/basemap/odm_texturing/`);
+			mtlLoader.load("odm_textured_model_geo.mtl", materials => {
+				materials.preload();
 
-				viewer.scene.scene.add( object );
+				const objLoader = new OBJLoader();
+				objLoader.setMaterials(materials);
+				objLoader.setPath(`${Potree.resourcePath}/basemap/odm_texturing/`);
+				objLoader.load("odm_textured_model_geo.obj", mesh => {
+					// 1. รีเซ็ต transforms
+					mesh.position.set(0, 0, 0);
+					mesh.rotation.set(0, 0, 0);
+					mesh.scale.set(1, 1, 1);
 
-				viewer.onGUILoaded(() => {
-					// Add entries to object list in sidebar
-					let tree = $(`#jstree_scene`);
-					let parentNode = "other";
+					// 2. ปรับแกนจาก Z-up → Y-up
+					mesh.rotateX(-Math.PI / 2);
 
-					let bunnyID = tree.jstree('create_node', parentNode, { 
-							text: "Bunny Textured", 
-							icon: `${Potree.resourcePath}/icons/triangle.svg`,
-							data: object
-						}, 
-						"last", false, false);
-					tree.jstree(object.visible ? "check_node" : "uncheck_node", bunnyID);
+					// อัปเดต matrix ก่อนคำนวณขอบเขต
+					mesh.updateMatrixWorld(true);
 
-					//tree.jstree("open_node", parentNode);
+					// 3. คำนวณ bounding box หลังหมุน
+					const objBB = new THREE.Box3().setFromObject(mesh);
+					const objCenter = objBB.getCenter(new THREE.Vector3());
+					console.log("OBJ Center (หลังหมุน):", objCenter);
+
+					// 4. เลื่อนโมเดลให้ center มาตรงกับ worldCenter
+					//    mesh.position = -objCenter (ย้าย center มา origin) + worldCenter
+					mesh.position.sub(objCenter).add(worldCenter);
+
+					viewer.scene.scene.add(mesh);
 				});
-
-			}, onProgress, onError );
+			});
 		}
-
-		{ // LIGHTS
-			const directional = new THREE.DirectionalLight( 0xffffff, 1.0);
-			directional.position.set( 10, 10, 10 );
-			directional.lookAt(0, 0, 0);
-
-			const ambient = new THREE.AmbientLight(0x555555);
-
-			viewer.scene.scene.add(directional);
-			viewer.scene.scene.add(ambient);
+		{
+			const dir = new THREE.DirectionalLight(0xffffff, 1.0);
+			dir.position.set(10, 10, 10).normalize();
+			const amb = new THREE.AmbientLight(0x555555);
+			viewer.scene.scene.add(dir, amb);
 		}
-
 	</script>
-	
-	
-  </body>
+
+
+
+</body>
+
 </html>
