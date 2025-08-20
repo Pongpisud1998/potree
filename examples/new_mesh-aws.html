@@ -60,7 +60,12 @@
             $("#menu_scene").next().show();
         });
 
-        const eptPath = "../resources/basemap/entwine_pointcloud/ept.json";
+        // Replace this with your actual task UUID and a base URL for your API
+        const taskUuid = "19b20dc5-59b2-40f4-8e8b-6327f22eecf8";
+        const awsApiBaseUrl = "http://localhost:8000/api/v1/task/";
+
+        // Update EPT point cloud path to use the new endpoint
+        const eptPath = `${awsApiBaseUrl}${taskUuid}/serve/entwine_pointcloud/ept.json`;
         const cloudName = "lion";
 
         Potree.loadPointCloud(eptPath, cloudName, (e) => {
@@ -74,22 +79,8 @@
             mat.size = 0.1;
             mat.pointSizeType = Potree.PointSizeType.ADAPTIVE;
 
-            // ===== 1. คำนวณ worldCenter ของ pointcloud =====
-            // ใช้ pcoGeometry.boundingBox + offset ที่ Potree เตรียมไว้
             const geoBB = pointcloud.pcoGeometry.boundingBox.clone();
             const geoCenter = geoBB.getCenter(new THREE.Vector3()).add(pointcloud.pcoGeometry.offset);
-            console.log('PointCloud boundingBox:', geoBB);
-            console.log('Computed worldCenter:', geoCenter);
-
-            // วาด helper sphere ตรง geoCenter ให้เห็นตำแหน่ง
-            const sphereGeom = new THREE.SphereGeometry(5, 12, 12);
-            const sphereMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-            const helperSphere = new THREE.Mesh(sphereGeom, sphereMat);
-            helperSphere.position.copy(geoCenter);
-            viewer.scene.scene.add(helperSphere);
-
-            // Load and align the OBJ model
-            loadOdmMesh(geoCenter);
 
             // Set initial camera position
             viewer.scene.view.position.set(
@@ -98,46 +89,63 @@
                 geoCenter.z + 500
             );
             viewer.scene.view.lookAt(geoCenter);
+            loadOdmMesh()
 
-            // viewer.setEDLOpacity(1);
+            viewer.setEDLOpacity(0);
         });
 
-        function loadOdmMesh(worldCenter) {
-            const mtlLoader = new MTLLoader();
-            mtlLoader.setPath(`${Potree.resourcePath}/basemap/odm_texturing/`);
-            mtlLoader.load("odm_textured_model_geo.mtl", (materials) => {
-                materials.preload();
+        function loadGeoreferencingOffset(cb) {
+            // Update georeferencing offset path
+            const geoFile = `${awsApiBaseUrl}${taskUuid}/serve/odm_georeferencing/coords.txt`;
 
-                const objLoader = new OBJLoader();
-                objLoader.setMaterials(materials);
-                objLoader.setPath(`${Potree.resourcePath}/basemap/odm_texturing/`);
-                objLoader.load("odm_textured_model_geo.obj", (mesh) => {
-                    // รีเซ็ตตำแหน่งก่อนคำนวณ bounding box
-                    mesh.position.set(0, 0, 0);
-                    mesh.rotation.set(0, 0, 0);
-                    mesh.scale.set(1, 1, 1);
-
-                    // ===== 2.1 คำนวณ center ของ OBJ =====
-                    // ถ้าเป็น Group ให้รวมทุก Mesh ข้างใน
-                    const objBB = new THREE.Box3();
-                    mesh.traverse(child => {
-                        if (child.isMesh) {
-                            child.geometry.computeBoundingBox();
-                            const childBB = child.geometry.boundingBox.clone()
-                                .applyMatrix4(child.matrixWorld);
-                            objBB.union(childBB);
+            function getGeoOffsetFromUrl(url) {
+                $.ajax({
+                    url, type: "GET",
+                    error: () => cb({ x: 0, y: 0 }),
+                    success: data => {
+                        const lines = data.split("\n");
+                        if (lines.length >= 2) {
+                            const [x, y] = lines[1].split(" ").map(parseFloat);
+                            cb({ x, y });
+                        } else {
+                            console.warn("Malformed georef file", url);
+                            cb({ x: 0, y: 0 });
                         }
-                    });
-                    const objCenter = objBB.getCenter(new THREE.Vector3());
-                    console.log('OBJ boundingBox:', objBB);
-                    console.log('Computed objCenter:', objCenter);
-
-                    // ===== 2.2 เลื่อน OBJ =====
-                    mesh.position.sub(objCenter).add(worldCenter);
-                    viewer.scene.scene.add(mesh);
-
-
+                    }
                 });
+            }
+
+            getGeoOffsetFromUrl(geoFile);
+        }
+
+        function loadOdmMesh() {
+            // Update mesh and materials paths
+            const mtlLoader = new MTLLoader()
+                .setPath(`${awsApiBaseUrl}${taskUuid}/serve/odm_texturing/`);
+
+            mtlLoader.load("odm_textured_model_geo.mtl", materials => {
+                materials.preload();
+                new OBJLoader()
+                    .setMaterials(materials)
+                    .setPath(`${awsApiBaseUrl}${taskUuid}/serve/odm_texturing/`)
+                    .load("odm_textured_model_geo.obj", object => {
+
+                        // reset so translateX/Y is exact
+                        object.position.set(0, 0, 0);
+                        object.rotation.set(0, 0, 0);
+                        object.scale.set(1, 1, 1);
+
+                        // grab the exact shift that ODM recorded…
+                        loadGeoreferencingOffset(offset => {
+                            object.translateX(offset.x);
+                            object.translateY(offset.y);
+
+                            viewer.scene.scene.add(object);
+
+                            // now frame both cloud + mesh
+                            viewer.fitToScreen();
+                        });
+                    });
             });
         }
 

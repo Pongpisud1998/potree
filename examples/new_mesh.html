@@ -60,7 +60,7 @@
             $("#menu_scene").next().show();
         });
 
-        const eptPath = "../resources/city/entwine_pointcloud/ept.json";
+        const eptPath = "../resources/mine/entwine_pointcloud/ept.json";
         const cloudName = "lion";
 
         Potree.loadPointCloud(eptPath, cloudName, (e) => {
@@ -86,12 +86,12 @@
             viewer.scene.view.lookAt(geoCenter);
             loadOdmMesh()
 
-            viewer.setEDLOpacity(0);
+            viewer.setEDLOpacity(1);
         });
 
         function loadGeoreferencingOffset(cb) {
-            const geoFile = "../resources/city/odm_georeferencing/coords.txt";
-            const legacyGeoFile = "../resources/city/odm_georeferencing/odm_georeferencing_model_geo.txt";
+            const geoFile = "../resources/mine/odm_georeferencing/coords.txt";
+            const legacyGeoFile = "../resources/mine/odm_georeferencing/odm_georeferencing_model_geo.txt";
 
             function getGeoOffsetFromUrl(url) {
                 $.ajax({
@@ -118,13 +118,13 @@
 
         function loadOdmMesh() {
             const mtlLoader = new MTLLoader()
-                .setPath(`${Potree.resourcePath}/city/odm_texturing/`);
+                .setPath(`${Potree.resourcePath}/mine/odm_texturing/`);
 
             mtlLoader.load("odm_textured_model_geo.mtl", materials => {
                 materials.preload();
                 new OBJLoader()
                     .setMaterials(materials)
-                    .setPath(`${Potree.resourcePath}/city/odm_texturing/`)
+                    .setPath(`${Potree.resourcePath}/mine/odm_texturing/`)
                     .load("odm_textured_model_geo.obj", object => {
 
                         // reset so translateX/Y is exact
